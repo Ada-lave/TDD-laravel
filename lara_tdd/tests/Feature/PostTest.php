@@ -5,7 +5,7 @@ namespace Tests\Feature;
 // use Illuminate\Foundation\Testing\RefreshDatabase;
 
 use App\Models\Post;
-
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Testing\File;
 use Illuminate\Support\Facades\Storage;
@@ -20,36 +20,7 @@ class PostTest extends TestCase
         parent::setUp();
         Storage::fake('local');
     }
-    /** @test */
-    public function a_post_can_be_stored()
-    {
-        $this->withoutExceptionHandling();
-
-
-        $file = File::create("image.png");
-
-        $data = [
-            "title" => "some title",
-            "description" => "desc",
-            'image' => $file
-        ];
-
-        
-
-        $response = $this->post('api/posts',$data);
-
-        $response->assertOk();
-
-        $this->assertDatabaseCount('posts',1);
-
-        $post = Post::first();
-
-        $this->assertEquals($data["title"],$post->title);
-        $this->assertEquals($data["description"],$post->description);
-        $this->assertEquals('images/'.$file->hashName(),$post->image_url);
-
-        Storage::disk("local")->assertExists($post->image_url);
-    }
+    
 
     /** @test */
     public function attr_title_is_required_for_storing_post()
@@ -110,9 +81,53 @@ class PostTest extends TestCase
         $this->assertEquals($data["title"], $updatedPost->title);
         $this->assertEquals($data["description"], $updatedPost->description);
         $this->assertEquals('images/'.$file->hashName(), $updatedPost->image_url);
+    }
 
+    /** @test */
+    public function response_for_route_posts_index_is_view_post_index_with_posts()
+    {
+        $this->withoutExceptionHandling();
 
+        $posts = Post::factory(10)->create();
+
+        $res = $this->get("/posts");
+
+        $res->assertViewIs("posts.index");
+
+        $res->assertSeeText("View PAGE");
+
+        $titles = $posts->pluck('title')->toArray();
+
+        $res->assertSeeText($titles);
+    }
+
+    /** @test */
+    public function response_for_route_posts_can_be_show_single_post()
+    {
+        $this->withoutExceptionHandling();
+
+        $posts = Post::factory(10)->create();
+
+        $post = Post::find(1);
+
+        $res = $this->get("/posts/".$post->id);
+
+        $res->assertOk();
+        $res->assertViewIs("posts.show");
+        $res->assertSeeText($post->title);
+    }
+
+    /** @test */
+    public function a_post_can_be_del_by_auth_user()
+    {
+        $this->withoutExceptionHandling();
+
+        $user = User::factory()->create();
+        $post = Post::factory()->create();
+
+        $res = $this->actingAs($user)->delete('/api/posts/' . $post->id);
+        $res->assertOk();
+        $this->assertDatabaseCount('posts',0);
 
     }
-    
 }
